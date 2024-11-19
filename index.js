@@ -1,22 +1,29 @@
-// index.js
 const express = require('express');
-const mongoose = require('mongoose');
+const cors = require('cors'); // Import the cors middleware
 require('dotenv').config();
+const authenticateToken = require('./middleware/authMiddleware');
+const connectDB = require('./config/db');
+const authRoutes = require('./routes/authRoutes');
+
+// Connect to the database
+connectDB();
 
 // Create Express app
 const app = express();
 
-// Middleware to parse JSON bodies
-app.use(express.json()); 
+// Enable CORS
+app.use(cors()); // Allow all origins by default
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => {
-        console.log("Connected to MongoDB");
-    })
-    .catch((err) => {
-        console.error("Failed to connect to MongoDB", err);
-    });
+// Middleware to parse JSON bodies
+app.use(express.json());
+
+// Routes
+app.use('/api/', authRoutes);
+
+// Protected route example
+app.get('/protected', authenticateToken, (req, res) => {
+    res.json({ message: 'This is a protected route', user: req.user });
+});
 
 // Basic route
 app.get('/', (req, res) => {
