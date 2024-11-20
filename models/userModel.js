@@ -5,7 +5,8 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   refreshToken: { type: String },
-  paymentPlan: { type: String, default: "basic" } // Default plan is "basic"
+  paymentPlan: { type: String, default: "basic" } 
 });
 
-export default mongoose.model("User", userSchema);
+export default mongoose.model("User", userSchema);   
+ 
