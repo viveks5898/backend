@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from 'mongoose';
 
 const userSchema = new mongoose.Schema({
   fullName: { type: String, required: true },
@@ -8,4 +8,4 @@ const userSchema = new mongoose.Schema({
   paymentPlan: { type: String, default: "basic" } // Default plan is "basic"
 });
 
-module.exports = mongoose.model("User", userSchema);
+export default mongoose.model("User", userSchema);

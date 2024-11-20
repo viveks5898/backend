@@ -1,12 +1,13 @@
-const User = require("../models/userModel");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import User from '../models/userModel.js';
+
 
 // Environment variables
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 
-exports.signup = async (req, res) => {
+export const signup = async (req, res) => {
     const { fullName, email, password, paymentPlan } = req.body;
 
     // Validate required fields
@@ -74,7 +75,7 @@ exports.signup = async (req, res) => {
 
   
 
-exports.login = async (req, res) => {
+export const login = async (req, res) => {
     const { email, password } = req.body;
 
     // Validate input
@@ -146,7 +147,7 @@ exports.login = async (req, res) => {
 
 
 
-exports.refreshToken = async (req, res) => {
+export const refreshToken = async (req, res) => {
     const { refreshToken } = req.body;
 
     if (!refreshToken) {
@@ -174,14 +175,14 @@ exports.refreshToken = async (req, res) => {
 
 
 // Forgot Password (Simplified)
-exports.forgotPassword = async (req, res) => {
+export const forgotPassword = async (req, res) => {
   const { email } = req.body;
   // Logic to generate and send reset password token to email
   res.status(200).json({ message: "Password reset email sent (mocked)" });
 };
 
 // Update User
-exports.updateUser = async (req, res) => {
+export const updateUser = async (req, res) => {
     const { id } = req.params;
     const { fullName } = req.body;
 
@@ -205,7 +206,7 @@ exports.updateUser = async (req, res) => {
 };
 
 
-exports.updatePaymentPlan = async (req, res) => {
+export const updatePaymentPlan = async (req, res) => {
     const { id } = req.params;
     const { paymentPlan } = req.body;
   
