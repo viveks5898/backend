@@ -72,6 +72,22 @@ const fetchLeagues = async () => {
     }
 };
 
+// Fetch Leagues by Country ID
+const getLeaguesByCountryId = async (countryId) => {
+    try {
+        const response = await axios.request({
+            ...axiosConfig,
+            url: `${API_BASE_URL}/football/leagues/countries/${countryId}`,  // URL with dynamic countryId
+        });
+        console.log("Leagues by Country ID response:", response.data);
+        return response.data.data;
+    } catch (error) {
+        console.error('Error fetching leagues by country ID:', error.response ? error.response.data : error.message);
+        throw new Error('Error fetching leagues by country ID');
+    }
+};
+
+
 // Fetch Fixtures
 const fetchFixtures = async () => {
     try {
@@ -83,6 +99,21 @@ const fetchFixtures = async () => {
         throw new Error('Error fetching fixtures');
     }
 };
+
+const fetchFixturesByLeagueId = async (leagueId) => {
+    try {
+      const response = await axios.request({ 
+        ...axiosConfig, 
+        url: `${API_BASE_URL}/football/fixtures/league/${leagueId}` 
+      });
+      console.log("Fixtures by League response:", response.data);
+      return response.data.data;
+    } catch (error) {
+      console.error('Error fetching fixtures by league ID:', error.response ? error.response.data : error.message);
+      throw new Error('Error fetching fixtures by league ID');
+    }
+  };
+  
 
 const fetchTeams = async () => {
     try {
@@ -108,4 +139,4 @@ const fetchPlayers = async () => {
 };
 
 
-export { fetchContinents, fetchCountries, fetchLeagues, fetchFixtures, fetchTeams, fetchPlayers };
+export { fetchContinents, fetchCountries, fetchLeagues, getLeaguesByCountryId, fetchFixtures, fetchFixturesByLeagueId, fetchTeams, fetchPlayers };

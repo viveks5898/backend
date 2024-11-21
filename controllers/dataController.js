@@ -4,7 +4,7 @@ import League from '../models/leagueModel.js';
 import Fixture from '../models/fixtureModel.js';
 import Team from '../models/teamModel.js';
 import Player from '../models/playerModel.js';
-import { fetchContinents, fetchCountries, fetchLeagues, fetchFixtures, fetchTeams, fetchPlayers } from '../services/sportMonkServices.js';
+import { fetchContinents, fetchCountries, fetchLeagues, getLeaguesByCountryId, fetchFixtures, fetchTeams, fetchPlayers, fetchFixturesByLeagueId } from '../services/sportMonkServices.js';
 
 const saveContinents = async (req, res) => {
     try {
@@ -93,6 +93,18 @@ const saveContinents = async (req, res) => {
     }
 };
 
+const fetchLeaguesByCountryId = async (req, res) => {
+    const { countryId } = req.params;  // Extract countryId from route parameters
+    try {
+        const leagues = await getLeaguesByCountryId(countryId);  // Fetch leagues using the service
+        res.status(200).json({ message: 'Leagues fetched successfully by country', data: leagues });
+    } catch (error) {
+        console.error('Error fetching leagues by country ID:', error.message);
+        res.status(500).json({ message: 'Error fetching leagues by country', error: error.message });
+    }
+};
+
+
 
   const saveFixtures = async (req, res) => {
     try {
@@ -123,6 +135,23 @@ const saveContinents = async (req, res) => {
         res.status(500).json({ message: 'Error fetching fixtures', error: error.message });
     }
 };
+
+const getFixturesByLeagueId = async (req, res) => {
+    try {
+      const { leagueId } = req.params; // Get league ID from route parameter
+      const fixtures = await fetchFixturesByLeagueId(leagueId);
+      
+      if (!fixtures || fixtures.length === 0) {
+        return res.status(404).json({ message: 'No fixtures found for this league' });
+      }
+      
+      res.status(200).json({ message: 'Fixtures fetched successfully', data: fixtures });
+    } catch (error) {
+      console.error('Error fetching fixtures by league ID:', error.message);
+      res.status(500).json({ message: 'Error fetching fixtures by league ID', error: error.message });
+    }
+  };
+  
 
 
 
@@ -192,4 +221,4 @@ const saveContinents = async (req, res) => {
 
   
   
-export { saveContinents, getContinents, saveCountries, getCountries, saveLeagues,getLeagues, saveFixtures, getFixtures, saveTeams, getTeams,  savePlayers, getPlayers };
+export { saveContinents, getContinents, saveCountries, getCountries, saveLeagues,getLeagues, fetchLeaguesByCountryId, saveFixtures, getFixtures, getFixturesByLeagueId, saveTeams, getTeams,  savePlayers, getPlayers };
