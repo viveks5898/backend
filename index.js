@@ -15,14 +15,14 @@ import {
 } from "./controllers/webhookController.js";
 import Stripe from "stripe";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-dotenv.config(); // To load .env variables
+dotenv.config(); 
 
 connectDB();
 
 // Create Express app
 const app = express();
 
-app.use(cors()); // Allow all origins by default
+app.use(cors()); 
 
 app.post(
   "/webhook",
