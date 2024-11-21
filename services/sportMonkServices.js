@@ -104,7 +104,7 @@ const fetchFixturesByLeagueId = async (leagueId) => {
     try {
       const response = await axios.request({ 
         ...axiosConfig, 
-        url: `${API_BASE_URL}/football/fixtures/league/${leagueId}` 
+        url: `${API_BASE_URL}/football/fixtures/latest/?league_id=${leagueId}` 
       });
       console.log("Fixtures by League response:", response.data);
       return response.data.data;

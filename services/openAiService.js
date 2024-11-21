@@ -30,8 +30,7 @@ const analyzeMatch = async (payload) => {
         const response = await openai.chat.completions.create({
             model: "gpt-4", // Specify the model (e.g., "gpt-4" or "gpt-3.5-turbo")
             messages: [
-                { role: "system", content: "You are an expert football analyst." },
-                { role: "user", content: prompt },
+                { role: "user", content: `${JSON.stringify(payload)}`},
             ],
             max_tokens: 1500, // Limit response size
             temperature: 0.7, // Adjust creativity
