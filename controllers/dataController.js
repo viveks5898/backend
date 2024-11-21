@@ -22,6 +22,17 @@ const saveContinents = async (req, res) => {
       res.status(500).json({ message: 'Error saving continents', error: error.message });
     }
   };
+
+  const getContinents = async (req, res) => {
+    try {
+        const continents = await Continent.find(); // Retrieve all continents
+        res.status(200).json({ message: 'Continents fetched successfully', data: continents });
+    } catch (error) {
+        console.error('Error fetching continents:', error.message);
+        res.status(500).json({ message: 'Error fetching continents', error: error.message });
+    }
+};
+
   
   
 
@@ -42,6 +53,17 @@ const saveContinents = async (req, res) => {
     }
   };
 
+  const getCountries = async (req, res) => {
+    try {
+        const countries = await Country.find(); // Retrieve all countries
+        res.status(200).json({ message: 'Countries fetched successfully', data: countries });
+    } catch (error) {
+        console.error('Error fetching countries:', error.message);
+        res.status(500).json({ message: 'Error fetching countries', error: error.message });
+    }
+};
+
+
   const saveLeagues = async (req, res) => {
     try {
       const leagues = await fetchLeagues();  
@@ -60,6 +82,17 @@ const saveContinents = async (req, res) => {
       res.status(500).json({ message: 'Error saving leagues', error: error.message });
     }
   };
+
+  const getLeagues = async (req, res) => {
+    try {
+        const leagues = await League.find(); // Retrieve all leagues
+        res.status(200).json({ message: 'Leagues fetched successfully', data: leagues });
+    } catch (error) {
+        console.error('Error fetching leagues:', error.message);
+        res.status(500).json({ message: 'Error fetching leagues', error: error.message });
+    }
+};
+
 
   const saveFixtures = async (req, res) => {
     try {
@@ -81,6 +114,17 @@ const saveContinents = async (req, res) => {
     }
   };
 
+  const getFixtures = async (req, res) => {
+    try {
+        const fixtures = await Fixture.find(); // Retrieve all fixtures
+        res.status(200).json({ message: 'Fixtures fetched successfully', data: fixtures });
+    } catch (error) {
+        console.error('Error fetching fixtures:', error.message);
+        res.status(500).json({ message: 'Error fetching fixtures', error: error.message });
+    }
+};
+
+
 
   const saveTeams = async (req, res) => {
     try {
@@ -101,6 +145,17 @@ const saveContinents = async (req, res) => {
     }
   };
 
+  const getTeams = async (req, res) => {
+    try {
+        const teams = await Team.find(); // Retrieve all teams
+        res.status(200).json({ message: 'Teams fetched successfully', data: teams });
+    } catch (error) {
+        console.error('Error fetching teams:', error.message);
+        res.status(500).json({ message: 'Error fetching teams', error: error.message });
+    }
+};
+
+
 
   const savePlayers = async (req, res) => {
     try {
@@ -114,7 +169,7 @@ const saveContinents = async (req, res) => {
   
       // Save players to the database
       const savedPlayers = await Player.insertMany(
-        players.map(player => ({ ...player, data: player }))  // Save all player data in 'data' field
+        players.map(player => ({ ...player, data: player }))
       );
   
       // Return success response
@@ -124,6 +179,17 @@ const saveContinents = async (req, res) => {
       res.status(500).json({ message: 'Error saving players', error: error.message });
     }
   };
+
+  const getPlayers = async (req, res) => {
+    try {
+        const players = await Player.find(); // Retrieve all players
+        res.status(200).json({ message: 'Players fetched successfully', data: players });
+    } catch (error) {
+        console.error('Error fetching players:', error.message);
+        res.status(500).json({ message: 'Error fetching players', error: error.message });
+    }
+};
+
   
   
-export { saveContinents, saveCountries, saveLeagues, saveFixtures, saveTeams, savePlayers };
+export { saveContinents, getContinents, saveCountries, getCountries, saveLeagues,getLeagues, saveFixtures, getFixtures, saveTeams, getTeams,  savePlayers, getPlayers };

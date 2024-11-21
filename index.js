@@ -6,6 +6,7 @@ import connectDB from "./config/db.js"; // Use import to get the connectDB funct
 import authRoutes from "./routes/authRoutes.js";
 import dataRoutes from "./routes/dataRoute.js";
 import subscriptionRoutes from "./routes/subscriptionRoutes.js";
+import openAiRoutes from "./routes/openAiRoutes.js"
 import bodyParser from "body-parser";
 import {
   handlePaymentSuccess,
@@ -77,6 +78,8 @@ app.use(express.json());
 
 app.use("/api/", authRoutes);
 app.use("/api/data", dataRoutes);
+app.use("/api/openAi", openAiRoutes);
+
 
 app.use("/api/subscription", subscriptionRoutes);
 
