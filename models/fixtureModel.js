@@ -11,7 +11,12 @@ const FixtureSchema = new mongoose.Schema({
   home_score: { type: Number },
   away_score: { type: Number },
   match_date: { type: Date },
-  data: { type: mongoose.Schema.Types.Mixed } // Store all other dynamic fields as "data"
+  data: { type: mongoose.Schema.Types.Mixed }, // Store all other dynamic fields as "data"
+  payload: {
+    type: Object, // Stores JSON data
+    required: true,
+},
+
 });
 
 export default mongoose.model('Fixture', FixtureSchema);

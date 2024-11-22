@@ -1,6 +1,7 @@
 import axios from 'axios';
 import https from 'https';
 import dotenv from 'dotenv';  
+import Fixture from '../models/fixtureModel.js';
 
 dotenv.config();  
 
@@ -102,17 +103,62 @@ const fetchFixtures = async () => {
 
 const fetchFixturesByLeagueId = async (leagueId) => {
     try {
-      const response = await axios.request({ 
-        ...axiosConfig, 
-        url: `${API_BASE_URL}/football/fixtures/latest/?league_id=${leagueId}` 
-      });
-      console.log("Fixtures by League response:", response.data);
-      return response.data.data;
+        // Fetch the fixtures for the given league ID
+        const response = await axios.request({ 
+            ...axiosConfig, 
+            url: `${API_BASE_URL}/football/fixtures/latest/?league_id=${leagueId}` 
+        });
+
+        console.log("Fixtures by League response:", response.data);
+
+        // If fixtures are returned, we process them for payload generation
+        const fixtures = response.data.data;
+        
+        if (fixtures && fixtures.length > 0) {
+            // Call the generatePayload function to create and save the payload
+            await generatePayload(leagueId, fixtures[0].season_id);
+        }
+
+        return fixtures;  // Return the fixtures data
     } catch (error) {
-      console.error('Error fetching fixtures by league ID:', error.response ? error.response.data : error.message);
-      throw new Error('Error fetching fixtures by league ID');
+        console.error('Error fetching fixtures by league ID:', error.response ? error.response.data : error.message);
+        throw new Error('Error fetching fixtures by league ID');
     }
-  };
+};
+
+
+
+// Fetch Team Statistics
+  const fetchTeamStatistics = async (teamId, seasonId) => {
+    try {
+        const response = await axios.request({ 
+            ...axiosConfig, 
+            url: `https://api.sportmonks.com/v3/my/filters/entity?api_token=${API_TOKEN}&team_id=${teamId}&season_id=${seasonId}&has_values=true`
+        });
+        console.log("Filtered Team Statistics:", response.data);
+        return response.data.data;  // Return the filtered team statistics
+    } catch (error) {
+        console.error('Error fetching filtered team statistics:', error.response ? error.response.data : error.message);
+        throw new Error('Error fetching filtered team statistics');
+    }
+};
+
+
+const fetchPlayerStatistics = async (teamId) => {
+    try {
+        const response = await axios.request({
+            ...axiosConfig,
+            url: `${API_BASE_URL}/football/players?filters=teamId:${teamId}`
+        });
+        console.log("Player Statistics response:", response.data);
+        return response.data.data;
+    } catch (error) {
+        console.error('Error fetching player statistics:', error.response ? error.response.data : error.message);
+        throw new Error('Error fetching player statistics');
+    }
+};
+
+
   
 
 const fetchTeams = async () => {
@@ -139,4 +185,66 @@ const fetchPlayers = async () => {
 };
 
 
-export { fetchContinents, fetchCountries, fetchLeagues, getLeaguesByCountryId, fetchFixtures, fetchFixturesByLeagueId, fetchTeams, fetchPlayers };
+const generatePayload = async (leagueId, seasonId) => {
+    try {
+        // First, fetch the fixtures
+        const fixtures = await fetchFixturesByLeagueId(leagueId);
+
+        // Then, fetch the team statistics
+        const teamStats = await fetchTeamStatistics(seasonId);
+
+        const payload = await Promise.all(
+            fixtures.map(async (fixture) => {
+                const { name, starting_at, league_id } = fixture;
+
+                const [team1Name, team2Name] = name.split(' vs ');
+                const team1Stats = teamStats.find(stat => stat.team.name === team1Name);
+                const team2Stats = teamStats.find(stat => stat.team.name === team2Name);
+
+                // Fetch player statistics for both teams
+                const team1Players = await fetchPlayerStatistics(team1Stats.team.id);
+                const team2Players = await fetchPlayerStatistics(team2Stats.team.id);
+
+                const playerStats = [...team1Players, ...team2Players].map(player => ({
+                    name: player.fullname,
+                    recent_goals: player.statistics.goals,
+                    assists: player.statistics.assists,
+                    minutes_played: player.statistics.minutes
+                }));
+
+                return {
+                    match_info: {
+                        team1: team1Name,
+                        team2: team2Name,
+                        competition: league_id,
+                        match_date: starting_at
+                    },
+                    team_stats: {
+                        team1: team1Stats.statistics,
+                        team2: team2Stats.statistics
+                    },
+                    player_stats: playerStats,
+                    betting_odds: {}  // Add betting odds data if necessary
+                };
+            })
+        );
+
+        console.log("Generated Payload:", payload);
+
+        // Save the payload to the fixture table
+        const newFixture = new Fixture({ payload });
+        await newFixture.save();
+
+        console.log('Payload saved to fixture table successfully');
+        return payload;
+    } catch (error) {
+        console.error('Error generating payload:', error.message);
+        throw new Error('Error generating payload');
+    }
+};
+
+
+
+
+
+export { fetchContinents, fetchCountries, fetchLeagues, getLeaguesByCountryId, fetchFixtures, fetchTeamStatistics, fetchPlayerStatistics, fetchFixturesByLeagueId, fetchTeams, fetchPlayers };

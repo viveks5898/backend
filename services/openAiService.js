@@ -1,45 +1,75 @@
 import OpenAI from "openai";
 import dotenv from "dotenv";
+import axios from "axios";  // We are using axios to fetch assistant details
 
 dotenv.config();
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const AGENT_NAME = process.env.AGENT_NAME || "asst_87UAz2YxWcN4BrtrLPXQwZLo";
+const AGENT_ID = process.env.AGENT_ID;
 
-if (!OPENAI_API_KEY) {
-    throw new Error("OpenAI API key is not set in environment variables");
+if (!OPENAI_API_KEY || !AGENT_ID) {
+    throw new Error("OpenAI API key or Agent ID is not set in environment variables");
 }
 
-// Initialize OpenAI with the API key
 const openai = new OpenAI({
     apiKey: OPENAI_API_KEY,
 });
 
-/**
- * Analyzes a football match based on provided data using OpenAI's ChatGPT model.
- *
- * @param {Object} payload The data containing details about the football match.
- * @returns {Promise<string>} A promise that resolves to a string containing the analysis.
- */
+const fetchAgentInstructions = async () => {
+    try {
+        const response = await axios.get(
+            `https://api.openai.com/v1/assistants/${AGENT_ID}`,
+            {
+                headers: {
+                    "Authorization": `Bearer ${OPENAI_API_KEY}`,
+                    "Content-Type": "application/json",
+                    "OpenAI-Beta": "assistants=v2",  // Optional header for the beta version
+                },
+            }
+        );
+
+        if (response.status === 200) {
+            // If the response is successful, extract the instructions
+            const instructions = response.data.instructions;
+            console.log("Agent Instructions fetched successfully:", instructions);
+            return instructions;
+        } else {
+            throw new Error(`Failed to fetch agent instructions, status code: ${response.status}`);
+        }
+    } catch (error) {
+        // Enhanced error handling for debugging
+        console.error("Error fetching agent instructions:", error.response ? error.response.data : error.message);
+        throw new Error("Failed to fetch agent instructions");
+    }
+};
+
 const analyzeMatch = async (payload) => {
     try {
-        // Construct the message content using the agent name and match payload
-        const prompt = `You are ${AGENT_NAME}. Analyze the following football match data and provide detailed insights:\n${JSON.stringify(payload)}`;
+        // Fetch the instructions for the agent
+        const instructions = await fetchAgentInstructions();
 
-        // Call OpenAI's chat completion endpoint
+
+
         const response = await openai.chat.completions.create({
-            model: "gpt-4", // Specify the model (e.g., "gpt-4" or "gpt-3.5-turbo")
+            model: "gpt-4o", 
             messages: [
-                { role: "user", content: `${JSON.stringify(payload)}`},
+                {
+                    role: "system",
+                    content: instructions,
+                },
+                {
+                    role: "user",
+                    content: JSON.stringify(payload), 
+                },
             ],
-            max_tokens: 1500, // Limit response size
-            temperature: 0.7, // Adjust creativity
+            max_tokens: 1500,
+            temperature: 0.7,
         });
 
-        // Extract and return the AI's response text
-        return response.choices[0].message.content.trim();
+        console.log(response.choices[0].message.content); // Log response for debugging
+        return response.choices[0].message.content.trim(); // Return the assistant's message content
     } catch (error) {
-        console.error("Error communicating with OpenAI:", error.message);
+        console.error("Error communicating with OpenAI:", error);
         throw new Error("Failed to get a response from OpenAI");
     }
 };
