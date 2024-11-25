@@ -14,6 +14,7 @@ import {
   handleSubscriptionUpdate,
 } from "./controllers/webhookController.js";
 import Stripe from "stripe";
+import "./services/crone.js";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 dotenv.config(); 
 

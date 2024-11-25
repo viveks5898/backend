@@ -1,5 +1,5 @@
 import express from 'express';
-import { fetchLeaguesByCountryId, getContinents, getCountries, getFixtures, getFixturesByLeagueId, getLeagues, getPlayers, getTeams, saveContinents, saveCountries, saveFixtures, saveLeagues, savePlayers, saveTeams} from '../controllers/dataController.js';
+import { fetchLeaguesByCountryId, getContinents, getCountries, getFixtures, getFixtureByLeagueId, getLeagues, getPlayers, getTeams, saveContinents, saveCountries, saveFixtures, saveLeagues, savePlayers, saveTeams} from '../controllers/dataController.js';
 
 const router = express.Router();
 
@@ -19,7 +19,7 @@ router.get('/leagues', getLeagues);
 router.get('/leagues/country/:countryId', fetchLeaguesByCountryId);
 
 router.get('/fixture', getFixtures);
-router.get('/fixtures/league/:leagueId', getFixturesByLeagueId);
+router.get('/fixtures/league/:leagueId', getFixtureByLeagueId);
 
 router.get('/teams', getTeams);
 router.get('/players', getPlayers);

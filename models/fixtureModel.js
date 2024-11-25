@@ -14,7 +14,6 @@ const FixtureSchema = new mongoose.Schema({
   data: { type: mongoose.Schema.Types.Mixed }, // Store all other dynamic fields as "data"
   payload: {
     type: Object, // Stores JSON data
-    required: true,
 },
 
 });

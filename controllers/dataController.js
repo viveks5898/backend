@@ -5,6 +5,8 @@ import Fixture from '../models/fixtureModel.js';
 import Team from '../models/teamModel.js';
 import Player from '../models/playerModel.js';
 import { fetchContinents, fetchCountries, fetchLeagues, getLeaguesByCountryId, fetchFixtures, fetchTeams, fetchPlayers, fetchFixturesByLeagueId } from '../services/sportMonkServices.js';
+// const moment = require('moment');
+
 
 const saveContinents = async (req, res) => {
     try {
@@ -106,25 +108,46 @@ const fetchLeaguesByCountryId = async (req, res) => {
 
 
 
-  const saveFixtures = async (req, res) => {
-    try {
-      const fixtures = await fetchFixtures();  // Fetch fixtures data
-  
-      if (!fixtures || !Array.isArray(fixtures)) {
-        return res.status(400).json({ message: 'Invalid data received from API' });
-      }
-  
-      // Save all fixtures directly as they are without mapping, including all data
-      const savedFixtures = await Fixture.insertMany(
-        fixtures.map(fixture => ({ ...fixture, data: fixture }))  // Save all data in 'data' field
-      );
-  
-      res.status(200).json({ message: 'Fixtures saved successfully', data: savedFixtures });
-    } catch (error) {
-      console.error('Error saving fixtures:', error.message);
-      res.status(500).json({ message: 'Error saving fixtures', error: error.message });
+const saveFixturesToDB = async () => {
+  try {
+    // Fetch the fixtures data from the external API
+    const fixtures = await fetchFixtures();
+    
+    // If fixtures are invalid or not an array, throw an error
+    if (!fixtures || !Array.isArray(fixtures)) {
+      throw new Error('Invalid data received from API');
     }
-  };
+
+    // Upsert fixtures into the database (update if exists, insert if new)
+    const fixturePromises = fixtures.map(async (fixture) => {
+      return Fixture.updateOne(
+        { id: fixture.id }, // Query by fixture id
+        { $set: { ...fixture, data: fixture } }, // Update fields (use $set to avoid overwriting entire document)
+        { upsert: true } // Insert new document if it doesn't exist
+      );
+    });
+
+    // Wait for all upserts to complete
+    await Promise.all(fixturePromises);
+    
+    console.log('Fixtures saved/updated successfully');
+  } catch (error) {
+    console.error('Error saving fixtures:', error.message);
+    throw new Error('Error saving fixtures');
+  }
+};
+
+
+// Express route handler - call saveFixturesToDB() and handle response
+const saveFixtures = async (req, res) => {
+  try {
+    await saveFixturesToDB();
+    res.status(200).json({ message: 'Fixtures saved/updated successfully' });
+  } catch (error) {
+    // console.error('Error saving fixtures:', error.message);
+    res.status(500).json({ message: 'Error saving fixtures', error: error.message });
+  }
+};
 
   const getFixtures = async (req, res) => {
     try {
@@ -136,22 +159,64 @@ const fetchLeaguesByCountryId = async (req, res) => {
     }
 };
 
-const getFixturesByLeagueId = async (req, res) => {
-    try {
-      const { leagueId } = req.params; // Get league ID from route parameter
-      const fixtures = await fetchFixturesByLeagueId(leagueId);
+// const getFixturesByLeagueId = async (req, res) => {
+//     try {
+//       const { leagueId } = req.params; // Get league ID from route parameter
+//       const fixtures = await fetchFixturesByLeagueId(leagueId);
       
-      if (!fixtures || fixtures.length === 0) {
-        return res.status(404).json({ message: 'No fixtures found for this league' });
-      }
+//       if (!fixtures || fixtures.length === 0) {
+//         return res.status(404).json({ message: 'No fixtures found for this league' });
+//       }
       
-      res.status(200).json({ message: 'Fixtures fetched successfully', data: fixtures });
-    } catch (error) {
-      console.error('Error fetching fixtures by league ID:', error.message);
-      res.status(500).json({ message: 'Error fetching fixtures by league ID', error: error.message });
-    }
-  };
+//       res.status(200).json({ message: 'Fixtures fetched successfully', data: fixtures });
+//     } catch (error) {
+//       console.error('Error fetching fixtures by league ID:', error.message);
+//       res.status(500).json({ message: 'Error fetching fixtures by league ID', error: error.message });
+//     }
+//   };
   
+const getFixtureByLeagueId = async (req, res) => {
+  console.log("hello");
+  try {
+    const { leagueId } = req.params;  // Get leagueId from the request parameters
+
+    console.log(leagueId, "leagueId");
+
+    // Fetch fixtures based on leagueId
+    const fixtures = await Fixture.find({
+      league_id: leagueId,  // Match the leagueId
+      // starting_at: { $gte: moment().toISOString() }  // Optional condition for future matches
+    });
+
+    console.log(fixtures, "fixturess");
+
+    if (!fixtures || fixtures.length === 0) {
+      return res.status(404).json({ message: 'No fixtures found for this league' });
+    }
+
+    // Extract the name and starting time of each fixture from the nested 'data' field
+    const matchDetails = fixtures.map(fixture => {
+      // Access the data field which contains the actual fixture details
+      const fixtureData = fixture.data;
+
+      // Return the name and starting_at (and any other desired fields)
+      return {
+        name: fixtureData.name,
+        starting_at: fixtureData.starting_at,
+      };
+    });
+
+    res.status(200).json({
+      message: 'Fixtures found',
+      data: matchDetails,
+    });
+  } catch (error) {
+    console.error('Error retrieving fixtures:', error.message);
+    res.status(500).json({ message: 'Error retrieving fixtures', error: error.message });
+  }
+};
+
+
 
 
 
@@ -221,4 +286,4 @@ const getFixturesByLeagueId = async (req, res) => {
 
   
   
-export { saveContinents, getContinents, saveCountries, getCountries, saveLeagues,getLeagues, fetchLeaguesByCountryId, saveFixtures, getFixtures, getFixturesByLeagueId, saveTeams, getTeams,  savePlayers, getPlayers };
+export { saveContinents, getContinents, saveCountries, getCountries, saveLeagues,getLeagues, fetchLeaguesByCountryId, saveFixtures, saveFixturesToDB, getFixtures, getFixtureByLeagueId, saveTeams, getTeams,  savePlayers, getPlayers };

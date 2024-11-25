@@ -2,13 +2,15 @@ import axios from 'axios';
 import https from 'https';
 import dotenv from 'dotenv';  
 import Fixture from '../models/fixtureModel.js';
+import moment from "moment"
+
 
 dotenv.config();  
 
 // Load environment variables
 const API_BASE_URL = process.env.API_URL || 'https://api.sportmonks.com/v3';  
 const LEAGUES_API_URL = process.env.LEAGUES_API_URL;
-const FIXTURES_API_URL = process.env.FIXTURES_API_URL;
+const FIXTURES_API_URL = 'https://api.sportmonks.com/v3/football/fixtures/between';
 const API_TOKEN = process.env.SPORT_MONK_TOKEN;
 const TEAMS_API_URL = process.env.TEAMS_API_URL;
 const PLAYERS_API_URL = process.env.PLAYERS_API_URL;
@@ -90,16 +92,40 @@ const getLeaguesByCountryId = async (countryId) => {
 
 
 // Fetch Fixtures
+// const fetchFixtures = async () => {
+//     try {
+//         const response = await axios.request({ ...axiosConfig, url: FIXTURES_API_URL });
+//         console.log("Fixtures response:", response.data);
+//         return response.data.data;
+//     } catch (error) {
+//         console.error('Error fetching fixtures:', error.response ? error.response.data : error.message);
+//         throw new Error('Error fetching fixtures');
+//     }
+// };
+
 const fetchFixtures = async () => {
     try {
-        const response = await axios.request({ ...axiosConfig, url: FIXTURES_API_URL });
+        // Get current date (startDate) and next day (endDate)
+        const startDate = moment().format('YYYY-MM-DD');  // Today
+        const endDate = moment().add(1, 'days').format('YYYY-MM-DD');  // Tomorrow
+
+        // Construct the URL with startDate and endDate
+        const url = `${FIXTURES_API_URL}/${startDate}/${endDate}?include=participants`;
+
+        console.log(url, "url")
+
+        // Make the request to the API
+        const response = await axios.request({ ...axiosConfig, url });
         console.log("Fixtures response:", response.data);
+        
+        // Return the fixtures data from the API response
         return response.data.data;
     } catch (error) {
         console.error('Error fetching fixtures:', error.response ? error.response.data : error.message);
         throw new Error('Error fetching fixtures');
     }
 };
+
 
 const fetchFixturesByLeagueId = async (leagueId) => {
     try {
@@ -129,19 +155,19 @@ const fetchFixturesByLeagueId = async (leagueId) => {
 
 
 // Fetch Team Statistics
-  const fetchTeamStatistics = async (teamId, seasonId) => {
+const fetchTeamStatistics = async (teamId) => {
     try {
-        const response = await axios.request({ 
-            ...axiosConfig, 
-            url: `https://api.sportmonks.com/v3/my/filters/entity?api_token=${API_TOKEN}&team_id=${teamId}&season_id=${seasonId}&has_values=true`
-        });
-        console.log("Filtered Team Statistics:", response.data);
-        return response.data.data;  // Return the filtered team statistics
+        const url = `https://api.sportmonks.com/v3/football/teams/${teamId}?api_token=${API_TOKEN}&include=statistics.details.type`;
+        const response = await axios.get(url);
+        // console.log(response.data.data.details, "response")
+        return response.data.data; // Return the relevant team statistics data
     } catch (error) {
-        console.error('Error fetching filtered team statistics:', error.response ? error.response.data : error.message);
-        throw new Error('Error fetching filtered team statistics');
+        console.error(`Error fetching statistics for team ID ${teamId}:`, error.message);
+        throw new Error('Error fetching team statistics');
     }
 };
+
+
 
 
 const fetchPlayerStatistics = async (teamId) => {
@@ -184,58 +210,83 @@ const fetchPlayers = async () => {
     }
 };
 
-
-const generatePayload = async (leagueId, seasonId) => {
+const generatePayload = async () => {
     try {
-        // First, fetch the fixtures
-        const fixtures = await fetchFixturesByLeagueId(leagueId);
+        // Get the fixtures for the next 24 hours from the database
+        const startDate = moment().format('YYYY-MM-DD');  // Today
+        const endDate = moment().add(1, 'days').format('YYYY-MM-DD');  // Tomorrow
 
-        // Then, fetch the team statistics
-        const teamStats = await fetchTeamStatistics(seasonId);
+        // Query the database to find fixtures within the date range
+        const fixtures = await Fixture.find({
+            "data.starting_at": { $gte: startDate, $lte: endDate }
+        });
+
+        if (!fixtures || fixtures.length === 0) {
+            console.log('No fixtures found in the given date range.');
+            return [];
+        }
 
         const payload = await Promise.all(
-            fixtures.map(async (fixture) => {
-                const { name, starting_at, league_id } = fixture;
+            fixtures.map(async (fixtureDoc) => {
+                const fixture = fixtureDoc.data;
+                console.log(fixture, "fixture")
+                const { name, starting_at, league_id, participants } = fixture;
 
-                const [team1Name, team2Name] = name.split(' vs ');
-                const team1Stats = teamStats.find(stat => stat.team.name === team1Name);
-                const team2Stats = teamStats.find(stat => stat.team.name === team2Name);
+                // Extract team names and IDs from participants
+                const team1Name = participants[0].name;
+                const team2Name = participants[1].name;
+                const team1Id = participants[0].id;
+                const team2Id = participants[1].id;
 
-                // Fetch player statistics for both teams
-                const team1Players = await fetchPlayerStatistics(team1Stats.team.id);
-                const team2Players = await fetchPlayerStatistics(team2Stats.team.id);
+                // Fetch team statistics for both teams
+                const team1Stats = await fetchTeamStatistics(team1Id);
+                const team2Stats = await fetchTeamStatistics(team2Id);
 
-                const playerStats = [...team1Players, ...team2Players].map(player => ({
-                    name: player.fullname,
-                    recent_goals: player.statistics.goals,
-                    assists: player.statistics.assists,
-                    minutes_played: player.statistics.minutes
-                }));
+                // Fetch competition name (league name)
+                const competition = await fetchCompetitionName(league_id);
 
+                // Construct match_info
+                const matchInfo = {
+                    team1: team1Name,
+                    team2: team2Name,
+                    competition: competition,
+                    match_date: starting_at
+                };
+
+                // Construct team_stats with limited data
+                const teamStats = {
+                    team1: {
+                        recent_form: team1Stats ? team1Stats.recent_form : [],
+                        goals_scored: team1Stats ? team1Stats.goals_scored : 0,
+                        goals_conceded: team1Stats ? team1Stats.goals_conceded : 0,
+                        matches_played: team1Stats ? team1Stats.matches_played : 0,
+                        average_goals_per_match: team1Stats ? team1Stats.average_goals_per_match : 0
+                    },
+                    team2: {
+                        recent_form: team2Stats ? team2Stats.recent_form : [],
+                        goals_scored: team2Stats ? team2Stats.goals_scored : 0,
+                        goals_conceded: team2Stats ? team2Stats.goals_conceded : 0,
+                        matches_played: team2Stats ? team2Stats.matches_played : 0,
+                        average_goals_per_match: team2Stats ? team2Stats.average_goals_per_match : 0
+                    }
+                };
+
+                // Return simplified payload for the current fixture
                 return {
-                    match_info: {
-                        team1: team1Name,
-                        team2: team2Name,
-                        competition: league_id,
-                        match_date: starting_at
-                    },
-                    team_stats: {
-                        team1: team1Stats.statistics,
-                        team2: team2Stats.statistics
-                    },
-                    player_stats: playerStats,
-                    betting_odds: {}  // Add betting odds data if necessary
+                    match_info: matchInfo,
+                    team_stats: teamStats
                 };
             })
         );
 
-        console.log("Generated Payload:", payload);
+        // Log the generated payload in a pretty-printed JSON format
+        console.log("Generated Payload:", JSON.stringify(payload, null, 2));
 
-        // Save the payload to the fixture table
-        const newFixture = new Fixture({ payload });
-        await newFixture.save();
+        // Optionally, save the generated payload to the fixture table or log it
+        // const newFixture = new Fixture({ payload });
+        // await newFixture.save();
 
-        console.log('Payload saved to fixture table successfully');
+        console.log('Payload generated successfully');
         return payload;
     } catch (error) {
         console.error('Error generating payload:', error.message);
@@ -243,8 +294,22 @@ const generatePayload = async (leagueId, seasonId) => {
     }
 };
 
+// Assuming a function that fetches competition name based on league_id
+const fetchCompetitionName = async (leagueId) => {
+    try {
+        // Example: Make a call to fetch the competition name based on the leagueId
+        const competitionData = await fetch(`https://api.sportmonks.com/v3/football/leagues/${leagueId}?api_token=55qAAO5S2IcchSpdfr7dlDxlrRK9wUCe1H1dhU2y6gOYk0JXkDNEWiQw14nP`);
+        const competition = await competitionData.json();
+        return competition.data.name;  // Assuming the competition name is under 'data.name'
+    } catch (error) {
+        console.error('Error fetching competition name:', error.message);
+        return 'Unknown Competition';  // Fallback in case of an error
+    }
+};
 
 
 
 
-export { fetchContinents, fetchCountries, fetchLeagues, getLeaguesByCountryId, fetchFixtures, fetchTeamStatistics, fetchPlayerStatistics, fetchFixturesByLeagueId, fetchTeams, fetchPlayers };
+
+
+export { fetchContinents, fetchCountries, fetchLeagues, getLeaguesByCountryId, fetchFixtures, fetchTeamStatistics, generatePayload, fetchPlayerStatistics, fetchFixturesByLeagueId, fetchTeams, fetchPlayers };
