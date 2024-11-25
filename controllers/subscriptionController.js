@@ -195,3 +195,99 @@ export const cancelSubscription = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
+
+
+// Step 1: Create Payment Intent for Buying Credits
+export const buyCredits = async (req, res) => {
+  try {
+    const { userId, creditAmount, customerName, customerAddress } = req.body;
+
+    if (!userId || !creditAmount || creditAmount <= 0) {
+      return res.status(400).json({ error: "Invalid input data" });
+    }
+
+    // Validate customer details
+    // if (!customerName || !customerAddress || !customerAddress.line1 || !customerAddress.postal_code) {
+    //   return res.status(400).json({ error: "Customer name and valid address are required" });
+    // }
+
+
+  
+    // Calculate the payment amount in cents (Stripe works with smallest currency units)
+    const pricePerCredit = 1; // $1 per credit
+    const totalPrice = creditAmount * pricePerCredit;
+    const amountInCents = Math.round(totalPrice * 100);
+
+    // Create a payment intent with customer name and address
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: "usd",
+      payment_method_types: ["card"],
+      description: `${creditAmount} credits purchase for $${totalPrice.toFixed(2)}`,
+      shipping: {
+        name: "customerName",
+        address: {
+          line1: "123 Main Street", // Required
+          line2: "Apt 4B", // Optional
+          city: "San Francisco", // Optional
+          state: "CA", // Optional
+          postal_code: "94111", // Optional
+          country: "US", // Optional (ISO 3166-1 alpha-2 format)
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      clientSecret: paymentIntent.client_secret, // Needed for frontend
+    });
+  } catch (error) {
+    console.error("Error in buyCredits API:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+
+
+// Step 2: Confirm Credit Purchase and Update User Credits
+export const confirmCreditPurchase = async (req, res) => {
+  try {
+    const { userId, paymentIntentId, creditAmount } = req.body;
+
+    if (!userId || !paymentIntentId || !creditAmount || creditAmount <= 0) {
+      return res.status(400).json({ error: "Invalid input data" });
+    }
+
+    // Retrieve the payment intent from Stripe
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+    if (paymentIntent.status !== "succeeded") {
+      return res.status(400).json({
+        error: "Payment not successful. Please try again.",
+      });
+    }
+
+    // Find the user in the database
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Update the user's credit balance
+    const updatedCredits = user.credit ? user.credit + creditAmount : creditAmount;
+
+    await User.findByIdAndUpdate(userId, { credit: updatedCredits });
+
+    res.status(200).json({
+      success: true,
+      message: "Credits purchased successfully!",
+      updatedCredits,
+    });
+  } catch (error) {
+    console.error("Error confirming credit purchase:", error);
+    res.status(500).json({ error: error.message });
+  }
+};

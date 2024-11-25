@@ -323,3 +323,67 @@ export const refreshToken = async (req, res) => {
     res.status(500).json({ error: "Error refreshing token" });
   }
 };
+
+
+export const deductCredit = async (req, res) => {
+  const { userId } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({
+      status: "error",
+      code: 400,
+      message: "User ID is required",
+    });
+  }
+
+  try {
+    // Find the user by ID
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        status: "error",
+        code: 404,
+        message: "User not found",
+      });
+    }
+
+    // Check user's subscription status
+    if (user.paymentStatus !== "paid") {
+      return res.status(403).json({
+        status: "error",
+        code: 403,
+        message: "Subscription is unpaid. Please renew your subscription.",
+      });
+    }
+
+    // Check if the user has at least 5 credits
+    if (user.credit < 1) {
+      return res.status(403).json({
+        status: "error",
+        code: 403,
+        message: "Insufficient credits. Please purchase more credits.",
+      });
+    }
+
+    // Deduct 5 credits
+    user.credit -= 1;
+
+    // Save the updated user data
+    await user.save();
+
+    return res.status(200).json({
+      status: "success",
+      code: 200,
+      message: "5 credits deducted successfully",
+      remainingCredits: user.credit,
+    });
+  } catch (error) {
+    console.error("Deduct Credit Error:", error);
+    return res.status(500).json({
+      status: "error",
+      code: 500,
+      message: "Error deducting credit",
+    });
+  }
+};

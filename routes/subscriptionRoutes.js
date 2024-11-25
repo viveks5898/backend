@@ -3,6 +3,8 @@ import {
   createSubscription, 
   createCustomer, 
   cancelSubscription, 
+  buyCredits, 
+  confirmCreditPurchase,
   upgradeSubscription 
 } from "../controllers/subscriptionController.js";
 
@@ -19,5 +21,8 @@ router.post("/cancel-subscription", cancelSubscription);
 
 // Route to upgrade a subscription plan
 router.post("/upgrade", upgradeSubscription);
+router.post("/buy-credits", buyCredits);
 
+// Route to confirm credit purchase
+router.post("/confirm-credit-purchase", confirmCreditPurchase);
 export default router;
