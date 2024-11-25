@@ -225,83 +225,107 @@ const generatePayload = async (req, res) => {
         // Query the database for the fixture with the given fixtureId
         const fixtureDoc = await Fixture.findOne({ id: fixtureIdInt });
 
+        // Debugging log to check the result of the query
         console.log('Fixture document found:', fixtureDoc);
 
         if (!fixtureDoc) {
             return res.status(404).json({ error: "Fixture not found" });
         }
 
-        // Destructure data from fixtureDoc
-        const { 
-            data: { match_info, team_stats, player_stats, betting_odds }, 
-            league_id 
-        } = fixtureDoc;
+        const fixture = fixtureDoc.data;
+        const { name, starting_at, league_id, participants } = fixture;
 
-        if (!match_info || !team_stats || !player_stats || !betting_odds) {
-            return res.status(400).json({ error: "Incomplete fixture data" });
-        }
+        // Extract team names and IDs from participants
+        const team1Name = participants[0].name;
+        const team2Name = participants[1].name;
+        const team1Id = participants[0].id;
+        const team2Id = participants[1].id;
 
-        // Destructure match_info
-        const { team1, team2, competition, match_date } = match_info;
+        // Fetch team statistics for both teams
+        const team1Stats = await fetchTeamStatistics(team1Id);
+        console.log("Team 1 Stats (raw):", JSON.stringify(team1Stats, null, 2)); // Log full stats of team 1
+        const team2Stats = await fetchTeamStatistics(team2Id);
+        console.log("Team 2 Stats (raw):", JSON.stringify(team2Stats, null, 2)); // Log full stats of team 2
 
-        // Validate the existence of team_stats for both teams
-        const team1Stats = team_stats.team1 || {};
-        const team2Stats = team_stats.team2 || {};
+        // Fetch competition name (league name)
+        const competition = await fetchCompetitionName(league_id);
 
         // Construct match_info
         const matchInfo = {
-            team1,
-            team2,
-            competition,
-            match_date,
+            team1: team1Name,
+            team2: team2Name,
+            competition: competition,
+            match_date: starting_at
         };
 
-        // Construct team_stats payload
+        // Manually construct team_stats for both teams
         const teamStats = {
             team1: {
-                recent_form: team1Stats.recent_form || ["W", "D", "W", "L", "W"],
-                goals_scored: team1Stats.goals_scored || 18,
-                goals_conceded: team1Stats.goals_conceded || 7,
-                matches_played: team1Stats.matches_played || 5,
-                average_goals_per_match: team1Stats.average_goals_per_match || 3.6,
-                home_record: team1Stats.home_record || { wins: 8, draws: 1, losses: 1 },
-                head_to_head: team1Stats.head_to_head || { wins: 4, losses: 3, draws: 3 },
+                recent_form: team1Stats ? team1Stats.recent_form || ["W", "D", "W", "L", "W"] : ["W", "D", "W", "L", "W"],
+                goals_scored: team1Stats ? team1Stats.goals_scored || 18 : 18,
+                goals_conceded: team1Stats ? team1Stats.goals_conceded || 7 : 7,
+                matches_played: team1Stats ? team1Stats.matches_played || 5 : 5,
+                average_goals_per_match: team1Stats ? team1Stats.average_goals_per_match || 3.6 : 3.6,
+                home_record: { wins: 8, draws: 1, losses: 1 },
+                head_to_head: { wins: 4, losses: 3, draws: 3 }
             },
             team2: {
-                recent_form: team2Stats.recent_form || ["L", "W", "D", "L", "W"],
-                goals_scored: team2Stats.goals_scored || 12,
-                goals_conceded: team2Stats.goals_conceded || 10,
-                matches_played: team2Stats.matches_played || 5,
-                average_goals_per_match: team2Stats.average_goals_per_match || 2.4,
-                away_record: team2Stats.away_record || { wins: 4, draws: 2, losses: 4 },
-                head_to_head: team2Stats.head_to_head || { wins: 3, losses: 4, draws: 3 },
-            },
+                recent_form: team2Stats ? team2Stats.recent_form || ["L", "W", "D", "L", "W"] : ["L", "W", "D", "L", "W"],
+                goals_scored: team2Stats ? team2Stats.goals_scored || 12 : 12,
+                goals_conceded: team2Stats ? team2Stats.goals_conceded || 10 : 10,
+                matches_played: team2Stats ? team2Stats.matches_played || 5 : 5,
+                average_goals_per_match: team2Stats ? team2Stats.average_goals_per_match || 2.4 : 2.4,
+                away_record: { wins: 4, draws: 2, losses: 4 },
+                head_to_head: { wins: 3, losses: 4, draws: 3 }
+            }
         };
 
-        // Betting odds can be directly used
-        const playerStats = player_stats;
+        // Manually define player stats
+        const playerStats = [
+            { name: "Mohamed Salah", recent_goals: 4, assists: 2, minutes_played: 450 },
+            { name: "Raheem Sterling", recent_goals: 2, assists: 1, minutes_played: 430 },
+            { name: "Darwin Núñez", recent_goals: 3, assists: 0, minutes_played: 400 }
+        ];
 
-        const bettingOdds = betting_odds;
+        // Manually define betting odds
+        const bettingOdds = {
+            "1x2": {
+                "Liverpool": 1.8,
+                "Draw": 3.5,
+                "Chelsea": 2.5
+            },
+            "over_under": {
+                "over_2.5": 1.9,
+                "under_2.5": 2.0
+            },
+            "anytime_scorer": {
+                "Mohamed Salah": 1.5,
+                "Darwin Núñez": 2.0
+            },
+            "both_teams_to_score": {
+                "yes": 1.6,
+                "no": 2.2
+            }
+        };
 
         // Construct the final payload
         const payload = {
             match_info: matchInfo,
             team_stats: teamStats,
             player_stats: playerStats,
-            betting_odds: bettingOdds,
+            betting_odds: bettingOdds
         };
 
-        const saveResult = await savePayload(fixtureId, payload);
+        console.log("Generated Payload:", JSON.stringify(payload, null, 2));
 
-        if (!saveResult.success) {
-            return res.status(500).json({ error: saveResult.error });
-        }
+        // Save the payload into the Fixture document
+        fixtureDoc.payload = payload;
+        await fixtureDoc.save();
 
-
-        // console.log("Generated Payload:", JSON.stringify(payload, null, 2));
+        console.log("Payload saved successfully");
 
         // Return the payload as the response
-        return res.json(payload);
+        return res.json({ message: "Payload saved successfully", payload });
 
     } catch (error) {
         console.error('Error generating payload:', error.message);
@@ -321,11 +345,6 @@ const fetchCompetitionName = async (leagueId) => {
         return 'Unknown Competition'; // Fallback in case of an error
     }
 };
-
-
-
-
-
 
 
 

@@ -176,45 +176,31 @@ const saveFixtures = async (req, res) => {
 //   };
   
 const getFixtureByLeagueId = async (req, res) => {
-  console.log("hello");
   try {
-    const { leagueId } = req.params;  // Get leagueId from the request parameters
+    const { leagueId } = req.params; // Get leagueId from the request parameters
 
-    console.log(leagueId, "leagueId");
+    console.log("League ID received:", leagueId);
 
-    // Fetch fixtures based on leagueId
-    const fixtures = await Fixture.find({
-      league_id: leagueId,  // Match the leagueId
-      // starting_at: { $gte: moment().toISOString() }  // Optional condition for future matches
-    });
+    // Fetch all fixtures with the specified league_id
+    const fixtures = await Fixture.find({ league_id: leagueId });
 
-    console.log(fixtures, "fixturess");
+    console.log("Fixtures retrieved:", fixtures);
 
     if (!fixtures || fixtures.length === 0) {
       return res.status(404).json({ message: 'No fixtures found for this league' });
     }
 
-    // Extract the name and starting time of each fixture from the nested 'data' field
-    const matchDetails = fixtures.map(fixture => {
-      // Access the data field which contains the actual fixture details
-      const fixtureData = fixture.data;
-
-      // Return the name and starting_at (and any other desired fields)
-      return {
-        name: fixtureData.name,
-        starting_at: fixtureData.starting_at,
-      };
-    });
-
+    // Return the entire fixtures data as is
     res.status(200).json({
       message: 'Fixtures found',
-      data: matchDetails,
+      data: fixtures,
     });
   } catch (error) {
     console.error('Error retrieving fixtures:', error.message);
     res.status(500).json({ message: 'Error retrieving fixtures', error: error.message });
   }
 };
+
 
 
 
