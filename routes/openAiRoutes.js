@@ -6,6 +6,6 @@ const router = express.Router();
 
 router.post("/analyze-match", analyzeMatchController);
 
-router.get("/payload", generatePayload)
+router.get("/payload/:fixtureId", generatePayload)
 
 export default router;

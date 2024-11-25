@@ -159,8 +159,8 @@ const fetchTeamStatistics = async (teamId) => {
     try {
         const url = `https://api.sportmonks.com/v3/football/teams/${teamId}?api_token=${API_TOKEN}&include=statistics.details.type`;
         const response = await axios.get(url);
-        // console.log(response.data.data.details, "response")
-        return response.data.data; // Return the relevant team statistics data
+        const stats = response.data.data.statistics; // This is an array of statistics objects
+        return stats; // Return relevant team statistics
     } catch (error) {
         console.error(`Error fetching statistics for team ID ${teamId}:`, error.message);
         throw new Error('Error fetching team statistics');
@@ -210,102 +210,119 @@ const fetchPlayers = async () => {
     }
 };
 
-const generatePayload = async () => {
+const generatePayload = async (req, res) => {
     try {
-        // Get the fixtures for the next 24 hours from the database
-        const startDate = moment().format('YYYY-MM-DD');  // Today
-        const endDate = moment().add(1, 'days').format('YYYY-MM-DD');  // Tomorrow
+        const { fixtureId } = req.params;
 
-        // Query the database to find fixtures within the date range
-        const fixtures = await Fixture.find({
-            "data.starting_at": { $gte: startDate, $lte: endDate }
-        });
+        console.log('Received fixtureId:', fixtureId);
 
-        if (!fixtures || fixtures.length === 0) {
-            console.log('No fixtures found in the given date range.');
-            return [];
+        const fixtureIdInt = parseInt(fixtureId, 10);
+
+        if (isNaN(fixtureIdInt)) {
+            return res.status(400).json({ error: "Invalid fixture ID" });
         }
 
-        const payload = await Promise.all(
-            fixtures.map(async (fixtureDoc) => {
-                const fixture = fixtureDoc.data;
-                console.log(fixture, "fixture")
-                const { name, starting_at, league_id, participants } = fixture;
+        // Query the database for the fixture with the given fixtureId
+        const fixtureDoc = await Fixture.findOne({ id: fixtureIdInt });
 
-                // Extract team names and IDs from participants
-                const team1Name = participants[0].name;
-                const team2Name = participants[1].name;
-                const team1Id = participants[0].id;
-                const team2Id = participants[1].id;
+        console.log('Fixture document found:', fixtureDoc);
 
-                // Fetch team statistics for both teams
-                const team1Stats = await fetchTeamStatistics(team1Id);
-                const team2Stats = await fetchTeamStatistics(team2Id);
+        if (!fixtureDoc) {
+            return res.status(404).json({ error: "Fixture not found" });
+        }
 
-                // Fetch competition name (league name)
-                const competition = await fetchCompetitionName(league_id);
+        // Destructure data from fixtureDoc
+        const { 
+            data: { match_info, team_stats, player_stats, betting_odds }, 
+            league_id 
+        } = fixtureDoc;
 
-                // Construct match_info
-                const matchInfo = {
-                    team1: team1Name,
-                    team2: team2Name,
-                    competition: competition,
-                    match_date: starting_at
-                };
+        if (!match_info || !team_stats || !player_stats || !betting_odds) {
+            return res.status(400).json({ error: "Incomplete fixture data" });
+        }
 
-                // Construct team_stats with limited data
-                const teamStats = {
-                    team1: {
-                        recent_form: team1Stats ? team1Stats.recent_form : [],
-                        goals_scored: team1Stats ? team1Stats.goals_scored : 0,
-                        goals_conceded: team1Stats ? team1Stats.goals_conceded : 0,
-                        matches_played: team1Stats ? team1Stats.matches_played : 0,
-                        average_goals_per_match: team1Stats ? team1Stats.average_goals_per_match : 0
-                    },
-                    team2: {
-                        recent_form: team2Stats ? team2Stats.recent_form : [],
-                        goals_scored: team2Stats ? team2Stats.goals_scored : 0,
-                        goals_conceded: team2Stats ? team2Stats.goals_conceded : 0,
-                        matches_played: team2Stats ? team2Stats.matches_played : 0,
-                        average_goals_per_match: team2Stats ? team2Stats.average_goals_per_match : 0
-                    }
-                };
+        // Destructure match_info
+        const { team1, team2, competition, match_date } = match_info;
 
-                // Return simplified payload for the current fixture
-                return {
-                    match_info: matchInfo,
-                    team_stats: teamStats
-                };
-            })
-        );
+        // Validate the existence of team_stats for both teams
+        const team1Stats = team_stats.team1 || {};
+        const team2Stats = team_stats.team2 || {};
 
-        // Log the generated payload in a pretty-printed JSON format
-        console.log("Generated Payload:", JSON.stringify(payload, null, 2));
+        // Construct match_info
+        const matchInfo = {
+            team1,
+            team2,
+            competition,
+            match_date,
+        };
 
-        // Optionally, save the generated payload to the fixture table or log it
-        // const newFixture = new Fixture({ payload });
-        // await newFixture.save();
+        // Construct team_stats payload
+        const teamStats = {
+            team1: {
+                recent_form: team1Stats.recent_form || ["W", "D", "W", "L", "W"],
+                goals_scored: team1Stats.goals_scored || 18,
+                goals_conceded: team1Stats.goals_conceded || 7,
+                matches_played: team1Stats.matches_played || 5,
+                average_goals_per_match: team1Stats.average_goals_per_match || 3.6,
+                home_record: team1Stats.home_record || { wins: 8, draws: 1, losses: 1 },
+                head_to_head: team1Stats.head_to_head || { wins: 4, losses: 3, draws: 3 },
+            },
+            team2: {
+                recent_form: team2Stats.recent_form || ["L", "W", "D", "L", "W"],
+                goals_scored: team2Stats.goals_scored || 12,
+                goals_conceded: team2Stats.goals_conceded || 10,
+                matches_played: team2Stats.matches_played || 5,
+                average_goals_per_match: team2Stats.average_goals_per_match || 2.4,
+                away_record: team2Stats.away_record || { wins: 4, draws: 2, losses: 4 },
+                head_to_head: team2Stats.head_to_head || { wins: 3, losses: 4, draws: 3 },
+            },
+        };
 
-        console.log('Payload generated successfully');
-        return payload;
+        // Betting odds can be directly used
+        const playerStats = player_stats;
+
+        const bettingOdds = betting_odds;
+
+        // Construct the final payload
+        const payload = {
+            match_info: matchInfo,
+            team_stats: teamStats,
+            player_stats: playerStats,
+            betting_odds: bettingOdds,
+        };
+
+        const saveResult = await savePayload(fixtureId, payload);
+
+        if (!saveResult.success) {
+            return res.status(500).json({ error: saveResult.error });
+        }
+
+
+        // console.log("Generated Payload:", JSON.stringify(payload, null, 2));
+
+        // Return the payload as the response
+        return res.json(payload);
+
     } catch (error) {
         console.error('Error generating payload:', error.message);
-        throw new Error('Error generating payload');
+        return res.status(500).json({ error: 'Error generating payload' });
     }
 };
 
-// Assuming a function that fetches competition name based on league_id
+
+
+// Fetch competition name based on league_id
 const fetchCompetitionName = async (leagueId) => {
     try {
-        // Example: Make a call to fetch the competition name based on the leagueId
-        const competitionData = await fetch(`https://api.sportmonks.com/v3/football/leagues/${leagueId}?api_token=55qAAO5S2IcchSpdfr7dlDxlrRK9wUCe1H1dhU2y6gOYk0JXkDNEWiQw14nP`);
-        const competition = await competitionData.json();
-        return competition.data.name;  // Assuming the competition name is under 'data.name'
+        const competitionData = await axios.get(`https://api.sportmonks.com/v3/football/leagues/${leagueId}?api_token=${API_TOKEN}`);
+        return competitionData.data.data.name; // Assuming the competition name is under 'data.name'
     } catch (error) {
         console.error('Error fetching competition name:', error.message);
-        return 'Unknown Competition';  // Fallback in case of an error
+        return 'Unknown Competition'; // Fallback in case of an error
     }
 };
+
+
 
 
 
