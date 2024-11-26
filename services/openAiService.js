@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import dotenv from "dotenv";
-import axios from "axios";  // We are using axios to fetch assistant details
+import axios from "axios";
 
 dotenv.config();
 
@@ -8,70 +8,115 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const AGENT_ID = process.env.AGENT_ID;
 
 if (!OPENAI_API_KEY || !AGENT_ID) {
-    throw new Error("OpenAI API key or Agent ID is not set in environment variables");
+  throw new Error(
+    "OpenAI API key or Agent ID is not set in environment variables"
+  );
 }
 
 const openai = new OpenAI({
-    apiKey: OPENAI_API_KEY,
+  apiKey: OPENAI_API_KEY,
 });
 
+/**
+ * Fetch agent instructions from OpenAI API.
+ * @returns {Promise<string>} The agent's instructions.
+ */
 const fetchAgentInstructions = async () => {
-    try {
-        const response = await axios.get(
-            `https://api.openai.com/v1/assistants/${AGENT_ID}`,
-            {
-                headers: {
-                    "Authorization": `Bearer ${OPENAI_API_KEY}`,
-                    "Content-Type": "application/json",
-                    "OpenAI-Beta": "assistants=v2",  // Optional header for the beta version
-                },
-            }
-        );
+  try {
+    const response = await axios.get(
+      `https://api.openai.com/v1/assistants/${AGENT_ID}`,
+      {
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+          "OpenAI-Beta": "assistants=v2",
+        },
+      }
+    );
 
-        if (response.status === 200) {
-            // If the response is successful, extract the instructions
-            const instructions = response.data.instructions;
-            console.log("Agent Instructions fetched successfully:", instructions);
-            return instructions;
-        } else {
-            throw new Error(`Failed to fetch agent instructions, status code: ${response.status}`);
+    if (response.status === 200 && response.data.instructions) {
+      console.log("Agent Instructions fetched successfully");
+      return response.data.instructions;
+    }
+
+    throw new Error(
+      `Failed to fetch instructions. Response: ${JSON.stringify(response.data)}`
+    );
+  } catch (error) {
+    console.error(
+      "Error fetching agent instructions:",
+      error.response?.data || error.message
+    );
+    throw new Error("Failed to fetch agent instructions");
+  }
+};
+
+/**
+ * Stream analysis from OpenAI API.
+ * @param {Object} res - Express response object for SSE.
+ * @param {Object} payload - The data payload to analyze.
+ */
+
+const analyzeMatchStream = async (res, payload) => {
+    try {
+      const instructions = await fetchAgentInstructions();
+  
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4o", // Ensure the correct model is specified
+        messages: [
+          {
+            role: "system",
+            content: instructions,
+          },
+          {
+            role: "user",
+            content: JSON.stringify(payload),
+          },
+        ],
+     
+        stream: true, // Enable streaming
+      });
+  
+      // Set headers for SSE
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+  
+      // Buffer to store the concatenated message
+      let buffer = "";
+  
+      for await (const chunk of stream) {
+        let messageContent = chunk.choices[0]?.delta?.content;
+  
+        if (messageContent) {
+          // Append chunk to the buffer
+          buffer += messageContent;
+  
+          // Clean the content to remove unwanted characters
+          const cleanedContent = buffer
+            .replace(/\*\*\*/g, "") // Remove `***`
+            .replace(/##/g, "") // Remove `##`
+            .replace(/\n/g, "<br>") // Replace newline characters with `<br>`
+            .trim(); // Trim any extra whitespace
+  
+          // Stream the cleaned message
+          res.write(`data: ${cleanedContent}\n\n`);
+  
+          // Clear buffer to avoid repeating the same message
+          buffer = "";
         }
+      }
+  
+      res.end();
     } catch (error) {
-        // Enhanced error handling for debugging
-        console.error("Error fetching agent instructions:", error.response ? error.response.data : error.message);
-        throw new Error("Failed to fetch agent instructions");
+      console.error(
+        "Error during streaming:",
+        error.response?.data || error.message
+      );
+      res.status(500).write("data: Error during streaming\n\n");
+      res.end();
     }
-};
+  };
+  
 
-const analyzeMatch = async (payload) => {
-    try {
-        // Fetch the instructions for the agent
-        const instructions = await fetchAgentInstructions();
-
-
-
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o", 
-            messages: [
-                {
-                    role: "system",
-                    content: instructions,
-                },
-                {
-                    role: "user",
-                    content: JSON.stringify(payload), 
-                },
-            ],
-            max_tokens: 1500,
-            temperature: 0.7,
-        });
-
-        console.log(response.choices[0].message.content); // Log response for debugging
-        return response.choices[0].message.content.trim(); // Return the assistant's message content
-    } catch (error) {
-        console.error("Error communicating with OpenAI:", error);
-        throw new Error("Failed to get a response from OpenAI");
-    }
-};
-
-export { analyzeMatch };
+export { analyzeMatchStream };

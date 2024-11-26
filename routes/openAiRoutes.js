@@ -4,6 +4,7 @@ import { generatePayload } from "../services/sportMonkServices.js";
 
 const router = express.Router();
 
+
 router.post("/analyze-match", analyzeMatchController);
 
 router.get("/payload/:fixtureId", generatePayload)
