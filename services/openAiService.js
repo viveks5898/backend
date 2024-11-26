@@ -60,7 +60,6 @@ const fetchAgentInstructions = async () => {
 const analyzeMatchStream = async (res, payload) => {
     try {
       const instructions = await fetchAgentInstructions();
-  
       const stream = await openai.chat.completions.create({
         model: "gpt-4o", // Ensure the correct model is specified
         messages: [
@@ -73,41 +72,59 @@ const analyzeMatchStream = async (res, payload) => {
             content: JSON.stringify(payload),
           },
         ],
-     
         stream: true, // Enable streaming
       });
-  
+      
       // Set headers for SSE
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
-  
+      
       // Buffer to store the concatenated message
       let buffer = "";
-  
+      
       for await (const chunk of stream) {
-        let messageContent = chunk.choices[0]?.delta?.content;
-  
+        const messageContent = chunk.choices[0]?.delta?.content;
+      
         if (messageContent) {
           // Append chunk to the buffer
           buffer += messageContent;
-  
-          // Clean the content to remove unwanted characters
-          const cleanedContent = buffer
-            .replace(/\*\*\*/g, "") // Remove `***`
-            .replace(/##/g, "") // Remove `##`
-            .replace(/\n/g, "<br>") // Replace newline characters with `<br>`
-            .trim(); // Trim any extra whitespace
-  
-          // Stream the cleaned message
-          res.write(`data: ${cleanedContent}\n\n`);
-  
-          // Clear buffer to avoid repeating the same message
-          buffer = "";
+      
+          // Check for a natural breakpoint (space, newline, punctuation, etc.)
+          const endsWithCompleteSegment = /[ \n.,!?]$/.test(buffer);
+      
+          if (endsWithCompleteSegment) {
+            // Process the buffer for newlines, bold formatting, and remove lines starting with ###
+            const processedBuffer = buffer
+              .replace(/^###.*$/gm, "") // Remove lines starting with ###
+              .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") // Convert **text** to bold HTML
+              .replace(/\n/g, "<br>") // Convert \n to HTML <br> for newlines
+              .replace(/#/g, "").replace(/\*\*/g, "").replace(/\-/g, "")  // Remove all occurrences of **; // Remove any stray # symbols
+      
+            // Stream the processed buffer content, ignoring empty lines
+            if (processedBuffer.trim()) {
+              res.write(`data: ${processedBuffer}`);
+            }
+      
+            buffer = ""; // Clear the buffer after sending
+          }
         }
       }
-  
-      res.end();
+      
+      // Send any remaining buffer content after the stream ends
+      if (buffer) {
+        const processedBuffer = buffer
+          .replace(/^###.*$/gm, "") // Remove lines starting with ###
+          .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") // Convert **text** to bold HTML
+          .replace(/#/g, ""); // Remove any stray # symbols
+      
+        if (processedBuffer.trim()) {
+          res.write(`data: ${processedBuffer}`);
+        }
+      }
+      
+      res.end(); // End the response once the stream is complete
+      
     } catch (error) {
       console.error(
         "Error during streaming:",
