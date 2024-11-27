@@ -80,21 +80,26 @@ const analyzeMatchStream = async (res, payload) => {
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-
+    // Process streaming chunks
     for await (const chunk of stream) {
-      const messageContent = chunk.choices[0]?.delta?.content;
-      res.write(`data: ${messageContent}`);
+      const messageContent = chunk.choices[0]?.delta?.content || "";
+      if (messageContent) {
+        res.write(`data: ${messageContent}`); // Ensure proper newline format for SSE
+      }
     }
 
-    res.end(); 
+    res.write("data: "); // Send a completion signal to the client
+    res.end(); // End the stream
+
   } catch (error) {
     console.error(
       "Error during streaming:",
       error.response?.data || error.message
     );
-    res.status(500).write("data: Error during streaming\n\n");
+    res.write("data: Error during streaming\n\n");
     res.end();
   }
 };
+
 
 export { analyzeMatchStream };
